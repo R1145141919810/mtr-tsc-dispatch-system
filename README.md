@@ -211,7 +211,7 @@ docs/rounds/           逐轮开发 / 联调 / 复测报告（27 份）
 | MTR / TSC | 4.0.x（实测 4.0.5） |
 | Java | 17（服务与模组均编译到 17） |
 | 控制桥 | 协议 v1、语义 2；建议 ≥ 1.8（带 `/mtbridge audit`） |
-| RealRail | 1.4.x 及以上（提供判定与前端） |
+| RealRail | 1.4.x 及以上（[仓库](https://github.com/R1145141919810/mtr-realrail) 最新 v1.5.0；提供判定与前端） |
 
 ---
 
