@@ -1,0 +1,192 @@
+# ==============================================================================
+# tsc-dispatch configuration  (schema version 1)
+#
+# One file drives the whole service. Sections map 1:1 to the seven design areas:
+#   tsc / bridge / rcon / dimensions / network_scale / dispatch / platform_allow
+# Every value below is the built-in default; delete what you do not need.
+# ==============================================================================
+
+service:
+  name: tsc-dispatch
+  # instance_id is generated at boot and echoed in logs and /v1/status
+  instance_id: ""
+
+admin:
+  enabled: true
+  host: 127.0.0.1          # bind loopback unless a reverse proxy fronts it
+  port: 8787
+  token: ""                # non-empty enables "Authorization: Bearer <token>"
+
+# ------------------------------------------------------------------------------
+# 1. TSC / MTR version and the port the simulator actually listens on
+# ------------------------------------------------------------------------------
+tsc:
+  base_url: http://127.0.0.1:8888
+  timeout_ms: 2500
+  retry_count: 2
+  # default dimension index used when the dimensions list is omitted
+  dimension: 0
+
+  version:
+    # Operator declared version of the running mod, e.g. "4.0.2".
+    # The HTTP surface does not publish it, so it must be stated here; the API
+    # fingerprint below is what actually protects against breakage.
+    declared: ""
+    min: "4.0.0"
+    max: ""                # empty = no upper bound
+    strict: false          # true = refuse to start when out of range or unknown
+
+  port_discovery:
+    # The mod falls back to a free port when the configured one is taken, so the
+    # service probes a range and reports the port it actually reached.
+    enabled: true
+    range_start: 8888
+    range_end: 8898
+
+# ------------------------------------------------------------------------------
+# 2. Control bridge (the only write channel that can address individual trains)
+#    auto   = use it when the probe succeeds, otherwise fall through
+#    bridge = require it (start degraded if absent)
+#    rcon   = never probe the bridge
+#    observe= read only, never write
+# ------------------------------------------------------------------------------
+bridge:
+  enabled: true
+  mode: auto
+  form: http               # http | mod | script  (informational, used in reports)
+  base_url: http://127.0.0.1:8889
+  protocol: 1
+  timeout_ms: 2000
+  probe_interval_ms: 15000
+  offline_after_failures: 3
+  auth_token: ""           # sent as Authorization: Bearer
+  require_vehicle_telemetry: true
+  # command kinds the bridge must advertise for the service to consider it usable
+  features_required: [set_platform]
+
+# ------------------------------------------------------------------------------
+# 3. RCON fallback
+# ------------------------------------------------------------------------------
+rcon:
+  enabled: true
+  host: 127.0.0.1
+  port: 25575
+  password: ""             # empty disables RCON even when enabled is true
+  timeout_ms: 3000
+  # when to fall back to RCON: bridge_offline | bridge_reject | command_timeout | manual
+  fallback_on: [bridge_offline, bridge_reject, command_timeout]
+  commands:
+    refresh_depot_routes: "mtr generatePath {depot}"
+    instant_deploy: "mtr instantDeploy {depot}"
+    clear_depot: "mtr clearVehicles {depot}"
+
+actuator:
+  mode: auto               # auto | bridge | rcon | dry-run
+  allow_advisory_only: true
+
+# ------------------------------------------------------------------------------
+# 4. Dimensions. index is the value sent as ?dimension= and follows the order
+#    the host server loaded its worlds - never guess it from the id.
+# ------------------------------------------------------------------------------
+dimensions:
+  - id: minecraft:overworld
+    index: 0
+    enabled: true
+  - id: minecraft:the_nether
+    index: 1
+    enabled: false
+  - id: minecraft:the_end
+    index: 2
+    enabled: false
+
+# ------------------------------------------------------------------------------
+# 5. Network scale and adaptive polling
+# ------------------------------------------------------------------------------
+network_scale:
+  total_stations: 0        # 0 = unknown / discover at runtime
+  total_platforms: 0
+  total_routes: 0
+  total_depots: 0
+  max_trains: 30
+  polling_interval_ms: 2000        # baseline, used when adaptive is false
+  static_polling_interval_ms: 30000
+  adaptive: true
+  polling_min_ms: 500
+  polling_max_ms: 10000
+  # first tier whose max_trains covers the configured/observed train count wins
+  tiers:
+    - max_trains: 10
+      polling_interval_ms: 1000
+    - max_trains: 40
+      polling_interval_ms: 2000
+    - max_trains: 100000
+      polling_interval_ms: 4000
+
+# ------------------------------------------------------------------------------
+# 6. Objective and hard constraints
+#    strategy presets: on_time | min_waiting | balanced
+# ------------------------------------------------------------------------------
+dispatch:
+  strategy: balanced
+  # Explicit weights override the preset; blank/omitted inherits from the preset.
+  weights:
+    travel:
+    occupancy:
+    wait:
+    depot:
+    deviation:
+
+  constraints:
+    # hard cap on how many trains may be heading to / parked in one depot
+    depot_capacity_limit: 0        # 0 = unlimited
+    depot_capacity: {}             # per depot override, e.g. { "Central Depot": 5 }
+    max_hold_seconds: 0            # 0 = never hold a train on purpose
+    blocked_penalty_seconds: 900   # soft penalty that keeps every plan feasible
+    # multiplier applied to a route's effective priority (higher = wins conflicts)
+    route_priority: {}             # e.g. { "A": 2.0, "1000000000000002": 1.5 }
+
+  dedup_window_seconds: 600
+  command_ttl_seconds: 45
+  max_attempts: 3
+  retry_backoff_ms: 250
+  lease_ttl_seconds: 120
+
+trigger:
+  approach_lead_seconds: 120
+  platform_headway_seconds: 90
+  cooldown_seconds: 30
+  return_after_seconds: 5400
+  return_at_local_time: ""         # "02:00-04:30", supports crossing midnight
+
+planner:
+  estimate_speed_mps: 18.0
+  depot_access_seconds: 150
+
+# ------------------------------------------------------------------------------
+# 7. Platform allow-set
+#    default: allow | deny
+#    A rule matches on route (number, hex id or "*") and station (hex id or "*").
+#    deny=false -> allow-list; deny=true -> deny-list. First match collection wins,
+#    a platform is allowed when it is in an allow-list and in no deny-list.
+# ------------------------------------------------------------------------------
+platform_allow:
+  default: allow
+  rules:
+    - route: "A"
+      station: "0000000000000004"
+      platforms: ["0000000000000041", "0000000000000042"]
+    - route: "*"
+      station: "0000000000000001"
+      platforms: ["0000000000000011", "0000000000000012"]
+
+# optional manual platform catalogue: the stock API only reveals platforms that
+# already have a scheduled arrival, so declare idle alternatives here
+catalogue:
+  platforms: ""
+
+state:
+  dir: state
+
+log:
+  level: INFO
+  file: ""

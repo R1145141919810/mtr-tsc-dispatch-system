@@ -1,0 +1,47 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'org.tsc'
+version = '1.1.0'
+
+repositories {
+    mavenCentral()
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+application {
+    mainClass = 'org.tsc.dispatch.Main'
+}
+
+// The service intentionally has no third-party dependencies: the jar must drop into any
+// headless server next to the game without dragging a classpath along.
+dependencies {
+}
+
+jar {
+    manifest {
+        attributes 'Main-Class': 'org.tsc.dispatch.Main',
+                'Implementation-Title': 'tsc-dispatch',
+                'Implementation-Version': project.version
+    }
+    archiveFileName = 'tsc-dispatch-1.0.0.jar'
+}
+
+tasks.register('selftest', JavaExec) {
+    group = 'verification'
+    description = 'Runs the deterministic scenario tests'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'org.tsc.dispatch.Main'
+    args 'selftest'
+}
+
+test {
+    useJUnitPlatform()
+}

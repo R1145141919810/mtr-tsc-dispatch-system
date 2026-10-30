@@ -1,0 +1,32 @@
+plugins {
+    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+}
+
+version = "${mod_version}+1.20.1"
+group = 'org.tsc.dispatch'
+base { archivesName = 'tsc-dispatch-mod' }
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+minecraft {
+    mappings channel: mapping_channel, version: mapping_version
+}
+
+// The service itself is compiled straight from its own source tree: one source of truth,
+// and the resulting mod jar contains the whole dispatch service with no third-party deps.
+sourceSets.main.java.srcDir '../tsc-dispatch/src/main/java'
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+}
+
+jar {
+    manifest {
+        attributes([
+            'Specification-Title'   : 'tscdispatch',
+            'Specification-Vendor'  : 'tscdispatch',
+            'Implementation-Title'  : 'TSC Dispatch Service',
+            'Implementation-Version': project.version
+        ])
+    }
+}

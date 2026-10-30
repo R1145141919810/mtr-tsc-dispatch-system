@@ -1,0 +1,16 @@
+# build outputs
+build/
+.gradle/
+out/
+
+# local run artifacts
+run/
+run-live*/
+state/
+logs/
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.iml
